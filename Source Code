@@ -1,0 +1,167 @@
+#include <SFML/Graphics.hpp>
+#include <SFML/System.hpp>
+#include <iostream>
+#include <vector>
+#include <string>
+#include <ctime>
+#include <cstdlib>
+#include <sstream>
+
+// List of test sentences
+const std::vector<std::string> testSentences = {
+"The quick brown fox jumps over the lazy dog.",
+"Coding is fun when logic flows smoothly.",
+"This program is made by Fahad Shaikh.",
+"Never stop learning.",
+"Happiness is the key to success.",
+"Practice makes perfect, so keep typing.",
+};
+
+// Function to get a random sentence
+std::string getRandomSentence() {
+    return testSentences[rand() % testSentences.size()];
+}
+
+// Function to wrap text to fit within a specific width
+std::string wrapText(const std::string& text, sf::Font& font, unsigned int fontSize, float maxWidth) {
+    std::istringstream words(text);
+    std::string word, wrappedText;
+    std::string currentLine;
+
+    sf::Text tempText("", font, fontSize);
+
+    while (words >> word) {
+        std::string testLine = currentLine.empty() ? word : currentLine + " " + word;
+        tempText.setString(testLine);
+
+        if (tempText.getLocalBounds().width > maxWidth) {
+            wrappedText += currentLine + "\n";
+            currentLine = word;
+        }
+        else {
+            currentLine = testLine;
+        }
+    }
+
+    wrappedText += currentLine;
+    return wrappedText;
+}
+
+int main() {
+    srand(static_cast<unsigned>(time(0)));  // Seed for randomness
+
+    sf::RenderWindow window(sf::VideoMode(800, 600), "Typing Speed Test");
+    sf::Font font;
+
+    if (!font.loadFromFile("D:/Arial.ttf")) {
+        std::cerr << "Failed to load font!" << std::endl;
+        return -1;
+    }
+
+    std::string testSentence = getRandomSentence();
+    std::string wrappedSentence = wrapText(testSentence, font, 32, 700);
+
+    sf::Text sentenceText(wrappedSentence, font, 32);
+    sentenceText.setPosition(50, 50);
+    sentenceText.setFillColor(sf::Color::White);
+
+    sf::Text typedText("", font, 32);
+    typedText.setPosition(50, 200);
+
+    sf::Text resultText("WPM: 0\nAccuracy: 0%", font, 32);
+    resultText.setPosition(50, 400);
+    resultText.setFillColor(sf::Color::Yellow);
+
+    std::string userInput = "";
+    bool testStarted = false;
+    bool testEnded = false;
+    float finalWPM = 0;
+    sf::Clock clock;
+
+    while (window.isOpen()) {
+        sf::Event event;
+        while (window.pollEvent(event)) {
+            if (event.type == sf::Event::Closed)
+                window.close();
+
+            if (testEnded && event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::R) {
+                testSentence = getRandomSentence();
+                wrappedSentence = wrapText(testSentence, font, 32, 700);
+                sentenceText.setString(wrappedSentence);
+                userInput.clear();
+                testEnded = false;
+                testStarted = false;
+                finalWPM = 0;
+                resultText.setString("WPM: 0\nAccuracy: 0%");
+                clock.restart();
+            }
+
+            if (event.type == sf::Event::TextEntered && !testEnded) {
+                if (!testStarted) {
+                    testStarted = true;
+                    clock.restart();
+                }
+
+                if (event.text.unicode == 8 && !userInput.empty()) {
+                    userInput.pop_back();
+                }
+                else if (event.text.unicode >= 32 && event.text.unicode <= 126) {
+                    userInput += static_cast<char>(event.text.unicode);
+                }
+            }
+        }
+
+        // Accuracy Calculation
+        int correctChars = 0;
+        for (size_t i = 0; i < userInput.length(); i++) {
+            if (i < testSentence.length() && userInput[i] == testSentence[i]) {
+                correctChars++;
+            }
+        }
+
+        float accuracy = userInput.empty() ? 0 : ((float)correctChars / userInput.length()) * 100;
+
+        // Change text color based on accuracy
+        if (accuracy == 100.0f) {
+            typedText.setFillColor(sf::Color::Green);
+        }
+        else {
+            typedText.setFillColor(sf::Color::Red);
+        }
+
+        // WPM Calculation
+        float timeTaken = clock.getElapsedTime().asSeconds();
+        float wpm = (timeTaken > 0) ? ((userInput.length() / 5.0f) / (timeTaken / 60.0f)) : 0;
+
+        if (testEnded) {
+            wpm = finalWPM;
+        }
+
+        // End test when sentence is completed
+        if (userInput == testSentence && !testEnded) {
+            testEnded = true;
+            finalWPM = wpm;
+        }
+
+        // Always update result text
+        if (testEnded) {
+            resultText.setString("WPM: " + std::to_string((int)finalWPM) +
+                "\nAccuracy: " + std::to_string((int)accuracy) + "%" +
+                "\nPress R to Restart");
+        }
+        else {
+            resultText.setString("WPM: " + std::to_string((int)wpm) +
+                "\nAccuracy: " + std::to_string((int)accuracy) + "%");
+        }
+
+        // Render
+        window.clear();
+        window.draw(sentenceText);
+        typedText.setString(userInput);
+        window.draw(typedText);
+        window.draw(resultText);
+        window.display();
+    }
+
+    return 0;
+}
